@@ -22,6 +22,11 @@ export default defineConfig({
   },
   dirs: ["./app/trigger"],
   build: {
+    // onnxruntime-node ships prebuilt .node binaries per platform/arch
+    // and esbuild has no loader for them. Mark it external so the
+    // bundler skips those requires and the runtime resolves the
+    // installed native module instead.
+    external: ["onnxruntime-node"],
     extensions: [
       syncEnvVars(() => ({
         // ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY as string,
