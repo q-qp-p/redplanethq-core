@@ -3,53 +3,43 @@ title: "Use Your Claude / Codex Subscription"
 description: "Point CORE at your Claude Max, ChatGPT Codex, Antigravity, or xAI Grok subscription — no API credits needed."
 ---
 
-If you already pay for Claude Max, a ChatGPT plan that includes Codex, Google Antigravity, or xAI Grok, you can point CORE at your subscription instead of buying separate API credits. The CoreBrain Gateway includes a subscription proxy (CLIProxyAPI) that speaks OpenAI-compatible on the outside and translates to each subscription's native protocol on the inside.
+If you already pay for Claude Max, a ChatGPT plan that includes Codex, Google Antigravity, or xAI Grok, you can point CORE at your subscription instead of buying separate API credits. The CoreBrain Gateway ships a subscription proxy that exposes an OpenAI-compatible API and translates to each provider under the hood.
 
 <Warning>
-Subscription plans are licensed for **interactive** use. Providers can rate-limit or revoke tokens if they detect headless usage. Fine for personal self-host on a laptop or single VPS; risky if you're serving other users. When in doubt, use real API keys.
+Subscription plans are licensed for **interactive** use. Providers can rate-limit or revoke tokens if they detect headless usage. Fine for personal self-host; risky if you're serving other users. When in doubt, use real API keys.
 </Warning>
 
-## The whole setup, four steps
+## Four steps
 
 ### 1. Deploy the gateway
 
-Pick one of [Railway, Docker, or native](/gateway/setup). The gateway image bundles CLIProxyAPI, so nothing extra to install. On first boot it prints a public URL and a `gwk_...` security key.
+The LLM proxy ships with the container image, so pick one of the container deployments:
 
-### 2. Register the gateway in CORE
+- [Deployment → Docker](/gateway/deployment/docker) — your own server or VPS.
+- [Deployment → Railway](/gateway/deployment/railway) — managed cloud.
 
-In the CORE webapp: **Sidebar → Gateways → + New gateway**. Paste the URL and security key.
+Both paths end with a **Base URL** and a `gwk_...` **security key**. Keep both handy — you'll paste them into the UI in step 2 and reuse the same security key as the BYOK API key in step 4.
 
-### 3. Install the CLI and log in to your workspace
+### 2. Add the gateway in the UI
 
-```bash
-npm install -g @redplanethq/corebrain
-corebrain login
-```
+In the CORE webapp: **Sidebar → Gateways → + New gateway**. Pick the deployment kind you used in step 1 (Docker or Railway), then paste the URL and security key.
 
-### 4. Log in to each subscription
-
-One command per subscription. The CLI drives the OAuth flow end-to-end and lands tokens directly on the gateway.
+### 3. Log in to your subscription
 
 ```bash
 corebrain gateway llmproxy --login claude
-corebrain gateway llmproxy --login codex
-corebrain gateway llmproxy --login antigravity
-corebrain gateway llmproxy --login xai
 ```
 
-Two flow types depending on the provider:
+Pick the gateway you just added when prompted. Follow the printed OAuth URL — for Claude / Codex / Antigravity the browser redirect is caught automatically; for xAI you'll type a short device code shown in the terminal.
 
-- **Claude / Codex / Antigravity** — CLI prints an OAuth URL. Open it, approve, and the CLI's local server catches the redirect and forwards it to the gateway. Nothing to type back.
-- **xAI** — CLI prints a URL **and a short code**. Open the URL, type the code on the page, done.
+Repeat with `--login codex`, `--login antigravity`, or `--login xai` for other providers.
 
-Add `--gateway <name-or-id>` if you have multiple gateways registered.
+### 4. Wire it into CORE
 
-## Wire the proxy into CORE
-
-In the CORE webapp, open **Workspace Settings → Models → API Keys**, click **+ Add API key**, choose **OpenAI**, and fill in:
+In the webapp: **Settings → Models → + New API key**. Choose **OpenAI** and fill in:
 
 - **Base URL** — `https://<your-gateway-host>/llmproxy/v1`
-- **API key** — the same `COREBRAIN_GATEWAY_SECURITY_KEY` value from step 1
+- **API key** — the same security key from step 1
 
 Then pick a model with the `openai/` prefix. Examples:
 
@@ -70,21 +60,19 @@ curl -s https://<your-gateway-host>/llmproxy/v1/models \
 
 ## When a token expires
 
-Just re-run the same command:
+Just re-run the same login command:
 
 ```bash
 corebrain gateway llmproxy --login claude
 ```
 
-CLIProxyAPI auto-rotates access tokens as long as the refresh token stays valid; when it doesn't, re-login. Tokens live on the gateway's persistent volume, so a container restart never blows them away.
+The proxy auto-rotates access tokens as long as the refresh token stays valid; when it doesn't, re-login. Tokens live on the gateway's persistent volume, so container restarts never blow them away.
 
-## Structured outputs & tool calling
+## Under the hood
 
-Under the hood, CORE routes structured-extraction calls (memory ingestion, label classification, etc.) via OpenAI-compatible **tool calling**. Claude's grammar-constrained sampling makes this reliable even for empty content — the model will call the tool with empty arrays rather than respond with prose refusals like "there's nothing to extract."
+The gateway embeds [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), which handles the OAuth flow for each subscription and re-shapes the requests into each provider's native protocol behind a single OpenAI-compatible surface at `/llmproxy/v1`. That's why one Base URL + one API key covers Claude, Codex, Antigravity, and xAI.
 
-## Alternatives
-
-The steps above use the built-in [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) inside the gateway. Other options exposing an OpenAI-compatible `/v1/chat/completions` surface work with the same BYOK wire-up:
+Other proxies exposing the same OpenAI-compatible shape work with the same wire-up if you'd rather run them yourself:
 
 - **[Vercel AI Gateway](https://vercel.com/docs/ai-gateway/coding-agents/claude-code)** — first-party pass-through for Claude Max via `ANTHROPIC_BASE_URL`. No self-hosting.
 - **[ai-cli-proxy-api](https://github.com/ben-vargas/ai-cli-proxy-api)** — variant that supports Factory and Amp CLIs alongside ChatGPT Plus/Pro and Claude Pro/Max.

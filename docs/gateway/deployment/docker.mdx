@@ -1,0 +1,92 @@
+---
+title: "Docker"
+description: "Run the gateway on a server, VPS, or always-on Docker host via a wizard-driven docker-compose deploy."
+---
+
+Pick this when you have a machine you control and want an always-on gateway. Public URL via Tailscale Funnel, Cloudflare Tunnel, or your own reverse proxy.
+
+## Prereqs
+
+- Docker installed (Docker Desktop or engine).
+- Node 20+ for the CLI.
+
+```bash
+npm install -g @redplanethq/corebrain
+corebrain login
+```
+
+## Deploy
+
+```bash
+corebrain gateway setup --kind docker
+```
+
+The wizard:
+
+1. Drops `docker-compose.yaml` and `.env` into `~/.corebrain/gateways/<name>/`.
+2. Optionally prompts for `CLAUDE_CODE_OAUTH_TOKEN`, `OPENAI_API_KEY`, `GITHUB_TOKEN` so the coding and git slots work out of the box.
+3. Optionally exposes the host via Tailscale Funnel (re-uses any existing Tailscale install).
+4. Runs `docker compose up -d`.
+5. Prints the public URL and offers to auto-register with CORE.
+
+If you'd rather use your own reverse proxy (Cloudflare, nginx, Caddy), pick "no tunnel" in the wizard and point your proxy at the host's port `7787`.
+
+## Grab the security key
+
+The `gwk_...` value is generated during setup and written to `~/.corebrain/gateways/<name>/.env`. Grab it here:
+
+```bash
+grep COREBRAIN_GATEWAY_SECURITY_KEY ~/.corebrain/gateways/<name>/.env
+```
+
+You'll paste it into the UI in the next step and, if you use the LLM proxy, again as the BYOK API key.
+
+## Register in the CORE app
+
+If you answered **yes** to the wizard's "Add to CORE?" prompt, the gateway is already registered — skip to Verify.
+
+Otherwise, in the webapp:
+
+1. **Sidebar → Gateways → + New gateway**.
+2. Pick **Docker**.
+3. Paste the **Base URL** and the **Security key** from step above.
+4. Submit.
+
+Status should flip to **Connected** within a few seconds.
+
+## Verify
+
+```bash
+corebrain gateway list
+```
+
+Or, in the CORE app, ask in any conversation: *"List my gateways."*
+
+## Manage the container
+
+```bash
+cd ~/.corebrain/gateways/<name>
+docker compose logs -f       # tail logs
+docker compose restart       # restart after env changes
+docker compose down          # stop
+```
+
+## Register a folder
+
+Point the gateway at directories on the Docker host that it should have access to:
+
+```bash
+corebrain folder add /path/on/host --scopes files,coding,exec
+```
+
+See the [scope reference](/gateway/overview#folders-and-scopes) for what each scope allows.
+
+## Troubleshooting
+
+**Gateway shows as Unreachable in the webapp**: confirm the URL in the webapp is what your reverse proxy / tunnel exposes, not the container's internal `http://localhost:7787`.
+
+**`docker compose up` failed with port conflict**: another service is on 7787. Edit `.env` to set `COREBRAIN_GATEWAY_HTTP_PORT` to a free port, and adjust your reverse proxy accordingly.
+
+**Rotating the security key**: change `COREBRAIN_GATEWAY_SECURITY_KEY` in `.env`, run `docker compose up -d`, then update the gateway's key in **Sidebar → Gateways → Edit** in the webapp.
+
+**Lost the key entirely**: it's still in `.env` — `grep COREBRAIN_GATEWAY_SECURITY_KEY ~/.corebrain/gateways/<name>/.env`.

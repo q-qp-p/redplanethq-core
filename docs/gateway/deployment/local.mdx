@@ -1,0 +1,141 @@
+---
+title: "Local (Native)"
+description: "Run the gateway as a launchd/systemd service on your laptop or workstation, exposed via Tailscale or ngrok."
+---
+
+Pick this when the gateway should run on your own machine with full access to browsers, shells, and local folders. A tunnel is required so CORE's cloud can reach `127.0.0.1`.
+
+## Prereqs
+
+Node 20+ on macOS, Linux, or WSL.
+
+```bash
+npm install -g @redplanethq/corebrain
+corebrain login
+```
+
+`corebrain login` opens your browser, authenticates against your CORE workspace, and stores a PAT in `~/.corebrain/preferences.json`.
+
+## Option A — Tailscale Funnel
+
+Stable URL tied to your tailnet. Good for days/weeks of uptime.
+
+### Install Tailscale
+
+```bash
+# macOS
+brew install --cask tailscale
+
+# Linux
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+Verify: `tailscale version`.
+
+### Bring Tailscale up
+
+```bash
+sudo tailscale up
+tailscale status   # this device should show as active
+```
+
+### Enable Funnel for this device
+
+In the [Tailscale admin console](https://login.tailscale.com/admin/acls):
+
+1. **DNS → HTTPS Certificates:** turn on.
+2. **Access Controls:** add a Funnel grant.
+
+```hujson
+"nodeAttrs": [
+  { "target": ["autogroup:member"], "attr": ["funnel"] }
+]
+```
+
+Reference: [Tailscale Funnel docs](https://tailscale.com/kb/1223/funnel).
+
+### Install + register the gateway
+
+```bash
+corebrain gateway setup --kind native
+corebrain gateway register --tunnel tailscale
+```
+
+The first command installs the gateway as a launchd (macOS) or systemd (Linux) service. The second runs `tailscale funnel --bg 7787`, captures the public URL (`https://<device>.<tailnet>.ts.net`), generates a security key, and prints both.
+
+## Option B — ngrok
+
+Fastest possible setup (one auth token, public URL in seconds). Free-tier URLs change on every restart, so this path is best for short-lived sessions or paid ngrok accounts.
+
+### Install ngrok
+
+```bash
+# macOS
+brew install ngrok
+
+# Linux / Windows: see https://ngrok.com/download
+```
+
+### Add your auth token
+
+Sign in at [dashboard.ngrok.com](https://dashboard.ngrok.com), copy the auth token:
+
+```bash
+ngrok config add-authtoken <YOUR_TOKEN>
+```
+
+Without this step ngrok starts but the public URL fails the TLS handshake (`ERR_NGROK_4018`).
+
+### Install + register the gateway
+
+```bash
+corebrain gateway setup --kind native
+corebrain gateway register --tunnel ngrok
+```
+
+The register command runs `ngrok http 7787` in the background, captures the public HTTPS URL, generates a security key, and prints both.
+
+## Register in the CORE app
+
+The security key is shown **once** — copy it now. Then:
+
+1. In the CORE webapp → **Sidebar → Gateways → + New gateway**.
+2. Pick **Native**.
+3. Paste the **Base URL** and **Security key**, submit.
+
+Status should flip to **Connected** within a few seconds. If it shows **Unreachable**, verify the tunnel is up (`tailscale status` or the ngrok dashboard).
+
+## Verify
+
+```bash
+corebrain gateway status        # this machine's gateway
+corebrain gateway list          # every gateway your workspace knows about
+```
+
+## Register a folder (recommended)
+
+Until you register at least one folder, the gateway runs in permissive first-run mode. Once you register one, scope is enforced everywhere.
+
+```bash
+corebrain folder add . --scopes files,coding,exec
+```
+
+| Scope | What it allows |
+| ----- | -------------- |
+| `files` | `files_read`, `files_write`, `files_edit`, `files_glob`, `files_grep` and the file browser in the webapp |
+| `coding` | `coding_ask` and interactive coding sessions targeting paths inside this folder |
+| `exec` | `exec_command` working directories |
+
+## Troubleshooting
+
+**`tailscale not found on PATH`**: install via `brew install --cask tailscale` (macOS) or the official installer (Linux). `brew install tailscale` only installs the daemon helper, not the CLI binary.
+
+**`tailscale funnel started but no public URL appeared within 5s`**: Funnel isn't yet enabled for this device. Re-check the admin console (HTTPS certs + Funnel grant) and retry.
+
+**`ngrok did not expose a public URL within 15s`**: usually a missing auth token. Run `ngrok config add-authtoken <token>` and retry.
+
+**Gateway shows as Unreachable**: confirm the tunnel is alive and the URL in the webapp matches what `corebrain gateway status` prints.
+
+**Lost the security key**: run `corebrain gateway register` to generate a new one, then update **Sidebar → Gateways → Edit** in the webapp.
+
+For a deeper troubleshooting matrix, see [Tunnels](/gateway/tunnels).

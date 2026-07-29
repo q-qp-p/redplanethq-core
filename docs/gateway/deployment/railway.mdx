@@ -1,0 +1,70 @@
+---
+title: "Railway"
+description: "Managed cloud gateway — Railway provisions the URL and runs the container for you."
+---
+
+Pick this when you want a fully managed cloud gateway with no infra of your own.
+
+## Option 1 — One-click deploy
+
+Click the button below. Railway prompts for env vars, provisions the service and a public domain, and the security key appears in the deploy logs on first boot.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/core-gateway)
+
+### Railway env vars
+
+| Variable | What to fill in | How to get it |
+| -------- | --------------- | ------------- |
+| `COREBRAIN_API_URL` | URL of your CORE instance, e.g. `https://app.getcore.me`. | Use the hosted instance URL, or your self-hosted domain. No trailing slash. |
+| `COREBRAIN_API_KEY` | A Personal Access Token (PAT) for your CORE workspace. | In the CORE webapp: avatar → **Settings → API keys → New token**. Copy the value once; it's not shown again. |
+| `COREBRAIN_GATEWAY_NAME` | Display name for this gateway, e.g. `railway-prod`. | Pick anything. Shows up in **Sidebar → Gateways** so you can tell multiple gateways apart. |
+| `COREBRAIN_GATEWAY_SECURITY_KEY` | *Recommended: pin your own value here.* | Generate with `echo "gwk_$(openssl rand -base64 32 \| tr -d '=' \| tr '/+' '_-')"` and paste the same value here and into the CORE app later. If you leave it blank, the gateway generates one on first boot and prints it to the deploy logs (banner: `CoreBrain Gateway, security key generated`). |
+| `GITHUB_TOKEN` | A GitHub Personal Access Token. | Required by the template, but only used if the gateway will clone private repos or commit on your behalf. Create at [github.com/settings/tokens](https://github.com/settings/tokens) → classic, scopes `repo` + `read:user`. Fine-grained PATs also work (`Contents: Read & write`, plus `Account → Profile: Read-only`). If you don't need private-repo access, paste any valid PAT; the gateway boots either way. |
+| `ANTHROPIC_API_KEY` *(optional)* | API key for Anthropic. | Lets `claude-code` skip the OAuth login flow. Get it at [console.anthropic.com](https://console.anthropic.com). Skip if you'll log Claude Code in manually later. |
+| `OPENAI_API_KEY` *(optional)* | API key for OpenAI. | Lets `codex-cli` skip OAuth. Get it at [platform.openai.com/api-keys](https://platform.openai.com/api-keys). |
+| `CLAUDE_CODE_OAUTH_TOKEN` *(optional)* | OAuth token for Claude Code. | Alternative to `ANTHROPIC_API_KEY` if you already have an OAuth token from a prior `claude` login. |
+
+### After Railway deploys
+
+1. Open the service in Railway → **Deployments → View logs**.
+2. Get the security key:
+   - If you pinned `COREBRAIN_GATEWAY_SECURITY_KEY`, use that value.
+   - Otherwise find the banner `CoreBrain Gateway, security key generated` and copy the `gwk_...` value.
+3. Copy the public domain Railway provisioned (under **Settings → Networking → Public Networking**).
+
+## Option 2 — CLI-driven
+
+```bash
+npm install -g @redplanethq/corebrain
+corebrain login
+corebrain gateway setup --kind railway
+```
+
+The wizard detects (or installs) the Railway CLI, runs `railway init` and `railway deploy -t core-gateway`, provisions a public domain, and prints the URL + security key.
+
+## Register in the CORE app
+
+1. **Sidebar → Gateways → + New gateway**.
+2. Pick **Railway**.
+3. Paste the **Base URL** (Railway public domain) and **Security key**.
+4. Submit.
+
+Status should flip to **Connected** within a few seconds.
+
+## Rotating the security key
+
+Change `COREBRAIN_GATEWAY_SECURITY_KEY` in the Railway service's env vars and redeploy. The gateway detects the new value on boot and overwrites the persisted hash. Update the key in **Sidebar → Gateways → Edit** in the webapp to match.
+
+## Verify
+
+In the CORE app, ask in any conversation: *"List my gateways."*
+
+Or from your laptop with the CLI:
+
+```bash
+corebrain gateway list
+```
+
+## LLM subscription proxy
+
+The Railway image ships the [LLM proxy](/gateway/subscription-proxy) at `/llmproxy/v1`. After registering, run `corebrain gateway llmproxy --login claude` (or `codex` / `antigravity` / `xai`) from your laptop to point CORE at your Claude Max, ChatGPT Codex, Antigravity, or xAI Grok subscription.

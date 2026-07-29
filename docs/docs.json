@@ -30,10 +30,6 @@
               "concepts/scratchpad",
               "concepts/widgets"
             ]
-          },
-          {
-            "group": "Bring Your Own Models",
-            "pages": ["gateway/subscription-proxy"]
           }
         ]
       },
@@ -198,6 +194,14 @@
           {
             "group": "Overview",
             "pages": ["gateway/overview", "gateway/setup"]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "gateway/deployment/local",
+              "gateway/deployment/docker",
+              "gateway/deployment/railway"
+            ]
           },
           {
             "group": "Capabilities",
